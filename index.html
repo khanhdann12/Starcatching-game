@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Hứng Sao</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0d1117;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
+            border: 4px solid #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+        canvas {
+            display: block;
+        }
+        #scoreBoard {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px black;
+        }
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 6px;
+        }
+        #restartBtn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #ffeb3b;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        #restartBtn:hover {
+            background: #fdd835;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <div id="scoreBoard">Điểm: <span id="score">0</span> | Mạng: <span id="lives">3</span></div>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="gameOverScreen">
+        <h1 style="color: #ff5722;">GAME OVER</h1>
+        <p>Số điểm của bạn: <span id="finalScore" style="font-size: 24px; color: #ffeb3b; font-weight: bold;">0</span></p>
+        <button id="restartBtn" onclick="resetGame()">Chơi lại</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.getElementById("score");
+    const livesEl = document.getElementById("lives");
+    const gameOverScreen = document.getElementById("gameOverScreen");
+    const finalScoreEl = document.getElementById("finalScore");
+
+    let score = 0;
+    let lives = 3;
+    let gameOver = false;
+
+    // Cấu hình thanh hứng (giỏ)
+    const basket = {
+        x: 160,
+        y: 540,
+        width: 80,
+        height: 15,
+        speed: 10
+    };
+
+    // Danh sách sao rơi
+    let stars = [];
+    let starSpeed = 3;
+    let spawnRate = 0.02; 
+
+    // Điều khiển bằng bàn phím
+    let rightPressed = false;
+    let leftPressed = false;
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Right" || e.key === "ArrowRight") rightPressed = true;
+        if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = true;
+    });
+
+    document.addEventListener("keyup", (e) => {
+        if (e.key === "Right" || e.key === "ArrowRight") rightPressed = false;
+        if (e.key === "Left" || e.key === "ArrowLeft") leftPressed = false;
+    });
+
+    // Điều khiển bằng chuột / di tay trên màn hình
+    canvas.addEventListener("mousemove", (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const rootX = e.clientX - rect.left;
+        basket.x = rootX - basket.width / 2;
+        if (basket.x < 0) basket.x = 0;
+        if (basket.x + basket.width > canvas.width) basket.x = canvas.width - basket.width;
+    });
+
+    function spawnStar() {
+        if (Math.random() < spawnRate) {
+            stars.push({
+                x: Math.random() * (canvas.width - 20) + 10,
+                y: 0,
+                radius: 8,
+                speed: starSpeed + Math.random() * 2
+            });
+        }
+    }
+
+    function drawBasket() {
+        ctx.fillStyle = "#ff5722";
+        ctx.fillRect(basket.x, basket.y, basket.width, basket.height);
+    }
+
+    function drawStars() {
+        ctx.fillStyle = "#ffeb3b";
+        stars.forEach((star) => {
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.closePath();
+        });
+    }
+
+    function update() {
+        if (gameOver) return;
+
+        if (rightPressed && basket.x < canvas.width - basket.width) basket.x += basket.speed;
+        if (leftPressed && basket.x > 0) basket.x -= basket.speed;
+
+        for (let i = stars.length - 1; i >= 0; i--) {
+            stars[i].y += stars[i].speed;
+
+            // Kiểm tra va chạm với thanh hứng
+            if (
+                stars[i].y + stars[i].radius >= basket.y &&
+                stars[i].y - stars[i].radius <= basket.y + basket.height &&
+                stars[i].x >= basket.x &&
+                stars[i].x <= basket.x + basket.width
+            ) {
+                score++;
+                scoreEl.innerText = score;
+                stars.splice(i, 1);
+                
+                // Tăng dần độ khó
+                if (score % 10 === 0) starSpeed += 0.5;
+                continue;
+            }
+
+            // Nếu sao rơi quá đáy màn hình
+            if (stars[i].y - stars[i].radius > canvas.height) {
+                lives--;
+                livesEl.innerText = lives;
+                stars.splice(i, 1);
+
+                if (lives <= 0) {
+                    gameOver = true;
+                    finalScoreEl.innerText = score;
+                    gameOverScreen.style.display = "flex";
+                }
+            }
+        }
+
+        spawnStar();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawBasket();
+        drawStars();
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function resetGame() {
+        score = 0;
+        lives = 3;
+        stars = [];
+        starSpeed = 3;
+        gameOver = false;
+        scoreEl.innerText = score;
+        livesEl.innerText = lives;
+        gameOverScreen.style.display = "none";
+    }
+
+    gameLoop();
+</script>
+</body>
+</html>
